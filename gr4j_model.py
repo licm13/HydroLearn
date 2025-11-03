@@ -185,7 +185,10 @@ class GR4J:
             if Pn > 0.01:  # Avoid numerical issues
                 part1 = self.X1 * (1 - S_norm ** 2) * np.tanh(Pn / self.X1)
                 part2 = 1 + S_norm * np.tanh(Pn / self.X1)
-                Ps = part1 / part2
+                if abs(part2) > 0.001:  # Safety check for division by zero
+                    Ps = part1 / part2
+                else:
+                    Ps = 0.0
             else:
                 Ps = 0.0
             
@@ -249,7 +252,7 @@ class GR4J:
         
         # Outflow from routing store
         R_norm = self.R / self.X3
-        if R_norm > 0:
+        if R_norm > 0 and self.R > 0.01:  # Add safety check for division by zero
             Qd = self.R * (1 - (1 + (self.X2 / self.R) ** 4) ** (-0.25))
         else:
             Qd = 0.0

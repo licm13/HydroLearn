@@ -178,7 +178,7 @@ class XinanjiangModel:
         PE = max(0, P - E)  # Net precipitation
         
         # Calculate runoff from pervious area using parabolic curve
-        if PE > 0:
+        if PE > 0 and self.WM > 0.01:  # Add safety check for division
             A = self.WM * (1.0 - (1.0 - self.W / self.WM) ** (1.0 / (1.0 + self.B)))
             
             if PE + A < self.WM:
