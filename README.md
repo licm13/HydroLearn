@@ -20,7 +20,7 @@ This repository is designed as a teaching tool for 3rd-year hydraulic engineerin
 * **Model Calibration & Validation**: Master the essential workflow of hydrological modeling: using historical data to optimize parameters and validating the model on an independent dataset.
 * **Performance Metrics**: Learn to evaluate model performance using standard metrics like Nash-Sutcliffe Efficiency (NSE).
 
-### Implemented Models
+### Implemented Models / 已实现的模型
 
 #### 1. **Xinanjiang Model (新安江模型)**
 
@@ -42,6 +42,18 @@ This repository is designed as a teaching tool for 3rd-year hydraulic engineerin
 - **Type**: Continuous soil moisture accounting.
 - **Best for**: Detailed operational river forecasting.
 
+#### 5. **HBV Model (Hydrologiska Byråns Vattenbalansavdelning)**
+
+- **Type**: Conceptual, snow and soil moisture accounting with temperature-driven processes.
+- **Best for**: Cold and temperate regions with snow accumulation and melt.
+- **Features**: Snow routine (degree-day method), soil moisture accounting, three-component runoff generation.
+
+#### 6. **SCS-CN + Unit Hydrograph (Event Model)**
+
+- **Type**: Event-based runoff estimation and routing.
+- **Best for**: Storm event analysis and design flood estimation.
+- **Features**: SCS Curve Number method for runoff estimation, unit hydrograph for routing, antecedent moisture condition adjustments.
+
 ### Installation
 
 ```bash
@@ -58,11 +70,31 @@ pip install -r requirements.txt
 First, run the examples with synthetic data to understand model behavior.
 
 ```bash
-# This script compares all models under various scenarios
+# This script compares all continuous models under various scenarios
 python examples.py
 ```
 
 This will demonstrate model comparison, sensitivity analysis, and storm event simulation.
+
+**Running Individual Models:**
+
+Each model can be run independently for detailed demonstrations:
+
+```bash
+# Run HBV model (includes temperature-based processes)
+python hbv_model.py
+
+# Run SCS-CN + Unit Hydrograph event model
+python event_model_scs_uh.py
+
+# Run other continuous models
+python xinanjiang_model.py
+python tank_model.py
+python gr4j_model.py
+python sacramento_model.py
+```
+
+Each model generates comprehensive visualizations in the `figures/` directory.
 
 ### Advanced Example: Calibration and Validation
 
@@ -81,20 +113,23 @@ This script will:
 * Use an optimization algorithm to find the best parameters for the GR4J model by maximizing the NSE.
 * Generate a plot comparing simulated and observed streamflow.
 
-### Project Structure
+### Project Structure / 项目结构
 
 ```
 Hydrological-model/
 ├── data/
-│   └── sample_data.csv       # Sample real-world data
-├── README.md                 # This file
-├── requirements.txt          # Python dependencies
-├── xinanjiang_model.py       # Xinanjiang model
-├── tank_model.py             # Tank model
-├── gr4j_model.py             # GR4J model
-├── sacramento_model.py       # Sacramento model
-├── examples.py               # Examples with synthetic data
-└── calibration_example.py    # Calibration with real data
+│   └── sample_data.csv       # Sample real-world data / 真实数据样例
+├── figures/                   # Output figures directory / 输出图表目录
+├── README.md                 # This file / 本文件
+├── requirements.txt          # Python dependencies / Python依赖
+├── xinanjiang_model.py       # Xinanjiang model / 新安江模型
+├── tank_model.py             # Tank model / Tank模型
+├── gr4j_model.py             # GR4J model / GR4J模型
+├── sacramento_model.py       # Sacramento model / Sacramento模型
+├── hbv_model.py              # HBV model (NEW) / HBV模型(新增)
+├── event_model_scs_uh.py     # SCS-CN + UH event model (NEW) / SCS-CN + 单位线事件模型(新增)
+├── examples.py               # Examples with synthetic data / 基于虚拟数据的示例
+└── calibration_example.py    # Calibration with real data / 基于真实数据的率定与验证
 ```
 
 ### For Your Assignment
@@ -143,6 +178,18 @@ Hydrological-model/
 - **类型**: 连续土壤水分核算模型。
 - **适用于**: 精细化的业务化洪水预报。
 
+#### 5. **HBV模型 (瑞典水文局水量平衡模型)**
+
+- **类型**: 概念性模型，具有积雪和土壤水分核算及温度驱动过程。
+- **适用于**: 有积雪累积和融化的寒冷和温带地区。
+- **特点**: 积雪模块(度日法)、土壤水分核算、三成分径流产生。
+
+#### 6. **SCS-CN + 单位线模型 (事件模型)**
+
+- **类型**: 基于事件的径流估算和汇流模型。
+- **适用于**: 暴雨事件分析和设计洪水估算。
+- **特点**: SCS曲线数法进行径流估算、单位线汇流、前期湿度条件调整。
+
 ### 安装
 
 ```bash
@@ -159,11 +206,31 @@ pip install -r requirements.txt
 首先，运行基于虚拟数据的示例，以理解各个模型的基本行为。
 
 ```bash
-# 该脚本在多种情境下对比所有模型
+# 该脚本在多种情境下对比所有连续型模型
 python examples.py
 ```
 
 这将为您展示模型对比、参数敏感性分析和暴雨洪水模拟等功能。
+
+**运行单个模型:**
+
+每个模型都可以独立运行以获得详细演示:
+
+```bash
+# 运行HBV模型(包括基于温度的过程)
+python hbv_model.py
+
+# 运行SCS-CN + 单位线事件模型
+python event_model_scs_uh.py
+
+# 运行其他连续型模型
+python xinanjiang_model.py
+python tank_model.py
+python gr4j_model.py
+python sacramento_model.py
+```
+
+每个模型在`figures/`目录中生成综合可视化图表。
 
 ### 进阶案例：参数率定与验证
 

@@ -26,11 +26,14 @@ import seaborn as sns
 import os
 from datetime import datetime, timedelta
 
-# Import all models
+# Import all models / 导入所有模型
 from xinanjiang_model import XinanjiangModel
 from tank_model import TankModel1D, TankModel2D, TankModel3D
 from gr4j_model import GR4J
 from sacramento_model import SacramentoModel
+from hbv_model import HBVModel
+# Note: event_model_scs_uh requires hourly data and is event-based (see separate usage)
+# 注意: event_model_scs_uh需要小时数据，是基于事件的(参见单独使用说明)
 
 
 def calculate_nse(observed: np.ndarray, simulated: np.ndarray) -> float:
@@ -58,38 +61,53 @@ def calculate_pbias(observed: np.ndarray, simulated: np.ndarray) -> float:
 def generate_synthetic_data(n_days: int = 365, seed: int = 42):
     """
     Generate synthetic hydrological data for testing.
+    生成用于测试的合成水文数据。
     
-    This function creates realistic precipitation and evapotranspiration
-    time series that can be used as input for hydrological models.
+    This function creates realistic precipitation, evapotranspiration, and
+    temperature time series that can be used as input for hydrological models.
+    此函数创建可用作水文模型输入的真实降水、蒸散发和温度时间序列。
     
-    Parameters:
+    Parameters / 参数:
     -----------
     n_days : int
-        Number of days to simulate
+        Number of days to simulate / 模拟天数
     seed : int
-        Random seed for reproducibility
+        Random seed for reproducibility / 用于可重复性的随机种子
         
-    Returns:
+    Returns / 返回:
     --------
-    dict : Dictionary containing P (precipitation) and ET (evapotranspiration)
+    dict : Dictionary containing P (precipitation), ET (evapotranspiration), and T (temperature)
+           包含P(降水)、ET(蒸散发)和T(温度)的字典
     """
     np.random.seed(seed)
     
     # Precipitation: Gamma distribution with intermittent rain
+    # 降水：具有间歇性降雨的伽马分布
     # Typical pattern: some days with heavy rain, many dry days
+    # 典型模式：一些大雨天，许多干旱天
     P = np.random.gamma(2, 5, n_days)
-    dry_days = np.random.rand(n_days) > 0.4  # 60% of days are dry
+    dry_days = np.random.rand(n_days) > 0.4  # 60% of days are dry / 60%的天数是干旱的
     P[dry_days] = 0
     
     # Potential Evapotranspiration: Seasonal sinusoidal pattern
-    # Higher in summer, lower in winter
+    # 潜在蒸散发：季节性正弦模式
+    # Higher in summer, lower in winter / 夏季较高，冬季较低
     t = np.arange(n_days)
-    ET = 3.0 + 2.0 * np.sin(2 * np.pi * t / 365 - np.pi / 2)  # Peak in day 91 (summer)
-    ET = np.maximum(ET, 0.5)  # Minimum 0.5 mm/day
+    ET = 3.0 + 2.0 * np.sin(2 * np.pi * t / 365 - np.pi / 2)  # Peak in day 91 (summer) / 第91天达到峰值(夏季)
+    ET = np.maximum(ET, 0.5)  # Minimum 0.5 mm/day / 最小0.5 mm/天
+    
+    # Temperature: Seasonal cycle with daily variation
+    # 温度：具有日变化的季节周期
+    # For models like HBV that require temperature
+    # 用于像HBV这样需要温度的模型
+    T_mean = 10.0  # Annual mean temperature / 年平均温度 (°C)
+    T_amplitude = 10.0  # Seasonal amplitude / 季节振幅 (°C)
+    T = T_mean + T_amplitude * np.sin(2 * np.pi * t / 365 - np.pi / 2) + np.random.normal(0, 2, n_days)
     
     return {
         'P': P,
         'ET': ET,
+        'T': T,  # Temperature for HBV model / HBV模型的温度
         'days': n_days
     }
 
@@ -149,27 +167,38 @@ def real_world_data_structure():
 def compare_all_models():
     """
     Compare all hydrological models with the same input data.
+    使用相同的输入数据比较所有水文模型。
+    
+    This function runs all available continuous hydrological models and
+    compares their performance with the same synthetic data.
+    此函数运行所有可用的连续水文模型，并使用相同的合成数据比较它们的性能。
+    
+    Note: Event-based models (SCS-CN+UH) require different data structure
+    and are demonstrated separately.
+    注意：基于事件的模型(SCS-CN+UH)需要不同的数据结构，单独演示。
     """
     print("=" * 80)
-    print("Comparing All Hydrological Models")
+    print("Comparing All Hydrological Models / 比较所有水文模型")
     print("=" * 80)
     
-    # Generate common input data
+    # Generate common input data / 生成通用输入数据
     data = generate_synthetic_data(n_days=365, seed=42)
     P = data['P']
     ET = data['ET']
+    T = data['T']  # Temperature for HBV / HBV的温度
     
-    print(f"\nInput Data: {data['days']} days")
-    print(f"Total Precipitation: {np.sum(P):.2f} mm")
-    print(f"Total Potential ET: {np.sum(ET):.2f} mm")
-    print(f"Average Daily P: {np.mean(P):.2f} mm")
-    print(f"Average Daily ET: {np.mean(ET):.2f} mm")
+    print(f"\nInput Data / 输入数据: {data['days']} days / 天")
+    print(f"Total Precipitation / 总降水: {np.sum(P):.2f} mm")
+    print(f"Total Potential ET / 总潜在蒸散发: {np.sum(ET):.2f} mm")
+    print(f"Average Daily P / 平均日降水: {np.mean(P):.2f} mm")
+    print(f"Average Daily ET / 平均日蒸散发: {np.mean(ET):.2f} mm")
+    print(f"Average Temperature / 平均温度: {np.mean(T):.2f} °C")
     
     results = {}
 
-    # 1. Xinanjiang Model
+    # 1. Xinanjiang Model / 新安江模型
     print("\n" + "-" * 80)
-    print("1. Running Xinanjiang Model...")
+    print("1. Running Xinanjiang Model / 运行新安江模型...")
     xaj = XinanjiangModel()
     results['Xinanjiang'] = xaj.run(P, ET)
     rng = np.random.default_rng(123)
@@ -178,55 +207,63 @@ def compare_all_models():
         a_min=0.0,
         a_max=None
     )
-    print(f"   Total discharge: {np.sum(results['Xinanjiang']['Q']):.2f} mm")
-    print(f"   Runoff coefficient: {np.sum(results['Xinanjiang']['Q'])/np.sum(P):.3f}")
+    print(f"   Total discharge / 总径流: {np.sum(results['Xinanjiang']['Q']):.2f} mm")
+    print(f"   Runoff coefficient / 径流系数: {np.sum(results['Xinanjiang']['Q'])/np.sum(P):.3f}")
     
-    # 2. Tank Model 1D
+    # 2. Tank Model 1D / Tank模型1D
     print("\n" + "-" * 80)
-    print("2. Running Tank Model 1D...")
+    print("2. Running Tank Model 1D / 运行Tank模型1D...")
     tank1d = TankModel1D()
     results['Tank_1D'] = tank1d.run(P, ET)
-    print(f"   Total discharge: {np.sum(results['Tank_1D']['Q']):.2f} mm")
-    print(f"   Runoff coefficient: {np.sum(results['Tank_1D']['Q'])/np.sum(P):.3f}")
+    print(f"   Total discharge / 总径流: {np.sum(results['Tank_1D']['Q']):.2f} mm")
+    print(f"   Runoff coefficient / 径流系数: {np.sum(results['Tank_1D']['Q'])/np.sum(P):.3f}")
     
-    # 3. Tank Model 2D
+    # 3. Tank Model 2D / Tank模型2D
     print("\n" + "-" * 80)
-    print("3. Running Tank Model 2D...")
+    print("3. Running Tank Model 2D / 运行Tank模型2D...")
     tank2d = TankModel2D()
     results['Tank_2D'] = tank2d.run(P, ET)
-    print(f"   Total discharge: {np.sum(results['Tank_2D']['Q']):.2f} mm")
-    print(f"   Runoff coefficient: {np.sum(results['Tank_2D']['Q'])/np.sum(P):.3f}")
+    print(f"   Total discharge / 总径流: {np.sum(results['Tank_2D']['Q']):.2f} mm")
+    print(f"   Runoff coefficient / 径流系数: {np.sum(results['Tank_2D']['Q'])/np.sum(P):.3f}")
     
-    # 4. Tank Model 3D
+    # 4. Tank Model 3D / Tank模型3D
     print("\n" + "-" * 80)
-    print("4. Running Tank Model 3D...")
+    print("4. Running Tank Model 3D / 运行Tank模型3D...")
     tank3d = TankModel3D()
     results['Tank_3D'] = tank3d.run(P, ET)
-    print(f"   Total discharge: {np.sum(results['Tank_3D']['Q']):.2f} mm")
-    print(f"   Runoff coefficient: {np.sum(results['Tank_3D']['Q'])/np.sum(P):.3f}")
+    print(f"   Total discharge / 总径流: {np.sum(results['Tank_3D']['Q']):.2f} mm")
+    print(f"   Runoff coefficient / 径流系数: {np.sum(results['Tank_3D']['Q'])/np.sum(P):.3f}")
     
-    # 5. GR4J Model
+    # 5. GR4J Model / GR4J模型
     print("\n" + "-" * 80)
-    print("5. Running GR4J Model...")
+    print("5. Running GR4J Model / 运行GR4J模型...")
     gr4j = GR4J()
     results['GR4J'] = gr4j.run(P, ET)
-    print(f"   Total discharge: {np.sum(results['GR4J']['Q']):.2f} mm")
-    print(f"   Runoff coefficient: {np.sum(results['GR4J']['Q'])/np.sum(P):.3f}")
+    print(f"   Total discharge / 总径流: {np.sum(results['GR4J']['Q']):.2f} mm")
+    print(f"   Runoff coefficient / 径流系数: {np.sum(results['GR4J']['Q'])/np.sum(P):.3f}")
     
-    # 6. Sacramento Model
+    # 6. Sacramento Model / Sacramento模型
     print("\n" + "-" * 80)
-    print("6. Running Sacramento Model...")
+    print("6. Running Sacramento Model / 运行Sacramento模型...")
     sac = SacramentoModel()
     results['Sacramento'] = sac.run(P, ET)
-    print(f"   Total discharge: {np.sum(results['Sacramento']['Q']):.2f} mm")
-    print(f"   Runoff coefficient: {np.sum(results['Sacramento']['Q'])/np.sum(P):.3f}")
+    print(f"   Total discharge / 总径流: {np.sum(results['Sacramento']['Q']):.2f} mm")
+    print(f"   Runoff coefficient / 径流系数: {np.sum(results['Sacramento']['Q'])/np.sum(P):.3f}")
     
-    # Comparison Table
+    # 7. HBV Model / HBV模型
+    print("\n" + "-" * 80)
+    print("7. Running HBV Model / 运行HBV模型...")
+    hbv = HBVModel()
+    results['HBV'] = hbv.run(P, T, ET)  # HBV需要温度 / HBV requires temperature
+    print(f"   Total discharge / 总径流: {np.sum(results['HBV']['Q']):.2f} mm")
+    print(f"   Runoff coefficient / 径流系数: {np.sum(results['HBV']['Q'])/np.sum(P):.3f}")
+    
+    # Comparison Table / 比较表
     print("\n" + "=" * 80)
-    print("Model Comparison Summary")
+    print("Model Comparison Summary / 模型比较摘要")
     print("=" * 80)
     print("\n{:<20} {:<15} {:<15} {:<15} {:<15} {:<12} {:<12} {:<12}".format(
-        "Model", "Total Q (mm)", "Runoff Coef", "Peak Q (mm)", "Mean Q (mm)",
+        "Model / 模型", "Total Q (mm)", "Runoff Coef", "Peak Q (mm)", "Mean Q (mm)",
         "NSE", "RMSE", "PBIAS"))
     print("-" * 80)
 
@@ -245,7 +282,7 @@ def compare_all_models():
 
     print("\n" + "=" * 80)
 
-    # Enhanced comprehensive visualization
+    # Enhanced comprehensive visualization / 增强的综合可视化
     create_model_comparison_plots(P, ET, observed_Q, results, save_dir="figures")
 
     return results
@@ -308,6 +345,10 @@ def create_model_comparison_plots(P, ET, observed_Q, results, save_dir="figures"
     model_names = list(results.keys())
     n_models = len(model_names)
     
+    # Generate enough colors for all models / 为所有模型生成足够的颜色
+    import matplotlib.cm as cm
+    colors_extended = [cm.tab10(i/10) for i in range(10)]
+    
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
     fig.suptitle('Models Performance Analysis', fontsize=16, fontweight='bold')
 
@@ -325,7 +366,7 @@ def create_model_comparison_plots(P, ET, observed_Q, results, save_dir="figures"
         total_discharges.append(np.sum(Q))
 
     # NSE comparison
-    bars1 = axes[0,0].bar(model_names, nse_values, color=colors[:n_models], alpha=0.7)
+    bars1 = axes[0,0].bar(model_names, nse_values, color=colors_extended[:n_models], alpha=0.7)
     axes[0,0].set_ylabel('Nash-Sutcliffe Efficiency', fontweight='bold')
     axes[0,0].set_title('Model Performance (NSE)', fontweight='bold')
     axes[0,0].grid(True, alpha=0.3)
@@ -338,7 +379,7 @@ def create_model_comparison_plots(P, ET, observed_Q, results, save_dir="figures"
                       f'{nse:.3f}', ha='center', va='bottom', fontweight='bold')
 
     # RMSE comparison
-    bars2 = axes[0,1].bar(model_names, rmse_values, color=colors[:n_models], alpha=0.7)
+    bars2 = axes[0,1].bar(model_names, rmse_values, color=colors_extended[:n_models], alpha=0.7)
     axes[0,1].set_ylabel('Root Mean Square Error (mm/day)', fontweight='bold')
     axes[0,1].set_title('Model Error (RMSE)', fontweight='bold')
     axes[0,1].grid(True, alpha=0.3)
@@ -351,7 +392,7 @@ def create_model_comparison_plots(P, ET, observed_Q, results, save_dir="figures"
                       f'{rmse:.3f}', ha='center', va='bottom', fontweight='bold')
 
     # Runoff coefficient comparison
-    bars3 = axes[1,0].bar(model_names, runoff_coeffs, color=colors[:n_models], alpha=0.7)
+    bars3 = axes[1,0].bar(model_names, runoff_coeffs, color=colors_extended[:n_models], alpha=0.7)
     axes[1,0].set_ylabel('Runoff Coefficient', fontweight='bold')
     axes[1,0].set_title('Water Balance (Runoff Coefficient)', fontweight='bold')
     axes[1,0].grid(True, alpha=0.3)
@@ -364,7 +405,7 @@ def create_model_comparison_plots(P, ET, observed_Q, results, save_dir="figures"
                       f'{coeff:.3f}', ha='center', va='bottom', fontweight='bold')
 
     # Total discharge comparison
-    bars4 = axes[1,1].bar(model_names, total_discharges, color=colors[:n_models], alpha=0.7)
+    bars4 = axes[1,1].bar(model_names, total_discharges, color=colors_extended[:n_models], alpha=0.7)
     axes[1,1].set_ylabel('Total Discharge (mm)', fontweight='bold')
     axes[1,1].set_title('Total Water Yield', fontweight='bold')
     axes[1,1].grid(True, alpha=0.3)
@@ -386,15 +427,19 @@ def create_model_comparison_plots(P, ET, observed_Q, results, save_dir="figures"
         axes = [axes]
     
     fig.suptitle('Individual Model Performance Analysis', fontsize=16, fontweight='bold')
+    
+    # Generate enough colors for all models / 为所有模型生成足够的颜色
+    import matplotlib.cm as cm
+    colors_extended = [cm.tab10(i/10) for i in range(10)]  # Use tab10 colormap / 使用tab10色图
 
     for i, (model_name, result) in enumerate(results.items()):
         Q_sim = result['Q']
         
         axes[i].plot(dates, observed_Q, label='Observed', color='black', linewidth=2, linestyle='--')
-        axes[i].plot(dates, Q_sim, label=f'{model_name}', color=colors[i], linewidth=1.5)
+        axes[i].plot(dates, Q_sim, label=f'{model_name}', color=colors_extended[i % len(colors_extended)], linewidth=1.5)
         
-        # Fill area between curves
-        axes[i].fill_between(dates, observed_Q, Q_sim, alpha=0.2, color=colors[i])
+        # Fill area between curves / 填充曲线间区域
+        axes[i].fill_between(dates, observed_Q, Q_sim, alpha=0.2, color=colors_extended[i % len(colors_extended)])
         
         nse = calculate_nse(observed_Q, Q_sim)
         rmse = calculate_rmse(observed_Q, Q_sim)
@@ -618,13 +663,22 @@ def main():
     # seasonal_pattern_example()
     
     print("\n" + "=" * 80)
-    print("All examples completed successfully!")
+    print("All examples completed successfully! / 所有示例成功完成!")
     print("=" * 80)
-    print("\nFor more information, see individual model files:")
+    print("\nFor more information, see individual model files / 更多信息请查看各模型文件:")
     print("  - xinanjiang_model.py")
     print("  - tank_model.py")
     print("  - gr4j_model.py")
     print("  - sacramento_model.py")
+    print("  - hbv_model.py (NEW - with temperature input / 新增 - 需要温度输入)")
+    print("  - event_model_scs_uh.py (NEW - event-based model / 新增 - 基于事件的模型)")
+    print("\nNote / 注意:")
+    print("  • HBV model requires temperature data (see hbv_model.py for details)")
+    print("  • HBV模型需要温度数据(详见hbv_model.py)")
+    print("  • SCS-CN+UH is event-based and requires hourly rainfall data")
+    print("  • SCS-CN+UH是基于事件的，需要小时降雨数据")
+    print("  • Run each model file directly for standalone demonstrations")
+    print("  • 直接运行每个模型文件以获得独立演示")
     print("\n")
 
 
