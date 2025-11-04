@@ -114,9 +114,6 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 import os
-import seaborn as sns
-from scipy.stats import pearsonr
-from scipy import stats
 
 
 class HBVModel:
