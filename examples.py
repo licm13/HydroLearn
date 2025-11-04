@@ -36,6 +36,7 @@ from tank_model import TankModel1D, TankModel2D, TankModel3D
 from gr4j_model import GR4J
 from sacramento_model import SacramentoModel
 from hbv_model import HBVModel
+from event_model_scs_uh import EventModel, create_event_plots
 # Note: event_model_scs_uh requires hourly data and is event-based (see separate usage)
 # 注意: event_model_scs_uh需要小时数据，是基于事件的(参见单独使用说明)
 
@@ -354,8 +355,9 @@ def create_model_comparison_plots(P, ET, observed_Q, results, save_dir="figures"
     n_models = len(model_names)
     
     # Generate enough colors for all models / 为所有模型生成足够的颜色
-    import matplotlib.cm as cm
-    colors_extended = [cm.tab10(i/10) for i in range(10)]
+    from matplotlib import colormaps as mcm
+    cmap = mcm.get_cmap('tab10')
+    colors_extended = [cmap(i/10) for i in range(10)]
     
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
     fig.suptitle('Models Performance Analysis', fontsize=16, fontweight='bold')
@@ -437,8 +439,9 @@ def create_model_comparison_plots(P, ET, observed_Q, results, save_dir="figures"
     fig.suptitle('Individual Model Performance Analysis', fontsize=16, fontweight='bold')
     
     # Generate enough colors for all models / 为所有模型生成足够的颜色
-    import matplotlib.cm as cm
-    colors_extended = [cm.tab10(i/10) for i in range(10)]  # Use tab10 colormap / 使用tab10色图
+    from matplotlib import colormaps as mcm
+    cmap = mcm.get_cmap('tab10')
+    colors_extended = [cmap(i/10) for i in range(10)]  # Use tab10 colormap / 使用tab10色图
 
     for i, (model_name, result) in enumerate(results.items()):
         Q_sim = result['Q']
@@ -635,6 +638,329 @@ def seasonal_pattern_example():
     print("\n" + "=" * 80)
 
 
+def generate_hourly_rain_event(total_depth_mm: float = 80.0,
+                               warmup_hours: int = 24,
+                               storm_hours: int = 24,
+                               recession_hours: int = 24,
+                               peak_skew: float = 3.0,
+                               seed: int = 42):
+    """
+    Generate an hourly storm hyetograph (mm/hour).
+    生成一个小时尺度暴雨过程(mm/h)。
+    
+    Parameters:
+    - total_depth_mm: total storm depth 总雨量
+    - warmup_hours: pre-storm dry hours 暴雨前干旱小时数
+    - storm_hours: storm duration 暴雨历时
+    - recession_hours: post-storm dry hours 暴雨后衰减/干旱小时数
+    - peak_skew: shape of hyetograph (gamma-like) 峰型偏度
+    - seed: RNG seed
+    
+    Returns:
+    - dict with keys: 'P_hourly' (np.ndarray mm/h), 'datetimes' (list[datetime]),
+                      'dt_hours' (float), 'total_depth_mm' (float)
+    """
+    import numpy as np
+    from datetime import datetime, timedelta
+
+    rng = np.random.default_rng(seed)
+
+    # Build a skewed intensity shape for the storm window
+    h = np.arange(storm_hours, dtype=float) + 1.0
+    # Gamma-like shape, then add small noise
+    shape = np.power(h, peak_skew - 1) * np.exp(-h / (storm_hours / 3.0))
+    shape = np.maximum(shape + rng.normal(0, 0.02, size=shape.size), 0)
+    if shape.sum() == 0:
+        shape[:] = 1.0
+    intensities = shape / shape.sum() * total_depth_mm  # mm distributed over storm_hours
+    # Convert to hourly intensities (already mm/h per hour bin)
+
+    # Assemble full series with dry periods
+    P_hourly = np.concatenate([
+        np.zeros(warmup_hours),
+        intensities,
+        np.zeros(recession_hours),
+    ])
+
+    start = datetime(2020, 1, 1, 0, 0, 0)
+    datetimes = [start + timedelta(hours=i) for i in range(P_hourly.size)]
+
+    return {
+        'P_hourly': P_hourly.astype(float),
+        'datetimes': datetimes,
+        'dt_hours': 1.0,
+        'total_depth_mm': float(P_hourly.sum())
+    }
+
+
+def hourly_rain_demo(save_dir: str = "figures", out_csv: str = "data/hourly_rain_event.csv"):
+    """
+    Create and save an hourly rainfall event for event-based models.
+    生成并保存小时降雨事件，供事件型模型(SCS-CN+UH)使用。
+    """
+    import os
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
+    os.makedirs(save_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+
+    data = generate_hourly_rain_event(
+        total_depth_mm=80.0, warmup_hours=24, storm_hours=24, recession_hours=24, peak_skew=3.0
+    )
+    P_hourly = data['P_hourly']
+    datetimes = data['datetimes']
+
+    # Save CSV: Datetime, Precipitation(mm/h)
+    df = pd.DataFrame({
+        "Datetime": datetimes,
+        "Precipitation_mm_per_h": P_hourly
+    })
+    df.to_csv(out_csv, index=False)
+
+    # Plot hyetograph
+    plt.figure(figsize=(12, 4))
+    plt.bar(datetimes, P_hourly, width=0.03, color='steelblue', alpha=0.8)
+    plt.gca().invert_yaxis()  # common hydro convention
+    plt.title("Hourly Storm Hyetograph (mm/h)")
+    plt.ylabel("Precipitation (mm/h)")
+    plt.xlabel("Datetime")
+    plt.tight_layout()
+    fig_path = os.path.join(save_dir, "hourly_rain_event.png")
+    plt.savefig(fig_path, dpi=200, bbox_inches='tight')
+    plt.close()
+
+    print(f"✓ Hourly rainfall CSV saved: {out_csv}")
+    print(f"✓ Hyetograph figure saved: {fig_path}")
+    print(f"Total depth: {P_hourly.sum():.1f} mm, Duration: {len(P_hourly)} hours")
+
+
+# ========================= NEW: Long hourly forcings =========================
+def generate_long_hourly_forcings(years: int = 2, seed: int = 123) -> dict:
+    """
+    Generate a long hourly forcing dataset: precipitation (P), potential ET (PET), and temperature (T).
+    生成长时间(小时尺度)的驱动数据：降水P、潜在蒸散PET、气温T。
+
+    Notes:
+    - P_h: Intermittent gamma rainfall with seasonal and mild diurnal modulation
+    - PET_h: Seasonal + diurnal cycle, typical daily total 2–5 mm/d
+    - T_h: Seasonal + diurnal temperature (°C)
+    """
+    import numpy as np
+    from datetime import datetime, timedelta
+
+    rng = np.random.default_rng(seed)
+
+    n_hours = int(years * 365 * 24)
+    start = datetime(2020, 1, 1, 0, 0, 0)
+    times = [start + timedelta(hours=i) for i in range(n_hours)]
+
+    # Time indices
+    h = np.arange(n_hours)
+    day_of_year = (h // 24) % 365
+    hour_of_day = h % 24
+
+    # Seasonal factors
+    seasonal_precip = 1.2 + 0.8 * np.sin(2 * np.pi * (day_of_year - 30) / 365.0)  # wetter in summer
+    seasonal_pet = 3.0 + 2.0 * np.sin(2 * np.pi * (day_of_year - 90) / 365.0)     # peak in summer
+    seasonal_temp = 10.0 + 12.0 * np.sin(2 * np.pi * (day_of_year - 90) / 365.0)
+
+    # Diurnal factors
+    diurnal_pet = np.clip(np.sin(np.pi * (hour_of_day - 6) / 12.0), 0, None)  # day-time PET
+    diurnal_temp = 3.0 * np.sin(2 * np.pi * (hour_of_day - 6) / 24.0)         # +/- 3°C diurnal amplitude
+
+    # Temperature (°C)
+    T_h = seasonal_temp + diurnal_temp + rng.normal(0, 1.0, n_hours)
+
+    # Potential ET (mm/h): ensure positive, daily total roughly 2–5 mm
+    PET_base = (seasonal_pet / 24.0) * (diurnal_pet / (diurnal_pet.mean() + 1e-6))
+    PET_h = np.maximum(0.0, PET_base + rng.normal(0, 0.02, n_hours))
+
+    # Hourly precipitation (mm/h): intermittent gamma with seasonal modulation
+    dry_prob = 0.80 - 0.15 * np.sin(2 * np.pi * (day_of_year - 60) / 365.0)   # fewer dry hours in summer
+    wet_mask = rng.random(n_hours) > dry_prob
+    shape_k, scale_theta = 1.5, 1.2  # gamma parameters -> mean ~1.8 mm
+    P_h = np.zeros(n_hours)
+    P_h[wet_mask] = rng.gamma(shape_k, scale_theta, wet_mask.sum())
+    # Seasonal modulation
+    P_h *= seasonal_precip
+    # Add a mild clustering effect by smoothing
+    kernel = np.array([0.2, 0.6, 0.2])
+    P_h = np.convolve(P_h, kernel, mode='same')
+
+    return {
+        'times': times,
+        'P_hourly': P_h.astype(float),
+        'PET_hourly': PET_h.astype(float),
+        'T_hourly': T_h.astype(float),
+        'dt_hours': 1.0
+    }
+
+
+def aggregate_hourly_to_daily(times, P_h, PET_h, T_h):
+    """
+    Aggregate hourly series to daily for daily models.
+    - P_daily = sum of hourly P (mm)
+    - PET_daily = sum of hourly PET (mm)
+    - T_daily = mean of hourly T (°C)
+    """
+    import numpy as np
+    import pandas as pd
+
+    df = pd.DataFrame({
+        'Datetime': times,
+        'P': P_h,
+        'PET': PET_h,
+        'T': T_h,
+    }).set_index('Datetime')
+
+    daily = df.resample('D').agg({'P': 'sum', 'PET': 'sum', 'T': 'mean'})
+    # Ensure plain Python datetimes and numpy arrays
+    dates = list(daily.index)  # pandas Timestamps are fine for printing/plotting
+    P_d = daily['P'].to_numpy(dtype=float)
+    PET_d = daily['PET'].to_numpy(dtype=float)
+    T_d = daily['T'].to_numpy(dtype=float)
+    return dates, P_d, PET_d, T_d
+
+
+def _extract_storm_from_hourly(P_h: np.ndarray, window_hours: int = 36) -> tuple:
+    """
+    Extract a single storm window from a long hourly rainfall series by maximizing rolling sum.
+    从长小时序列中提取一个暴雨事件窗口(最大滚动和)。
+    Returns (start_idx, end_idx) inclusive-exclusive.
+    """
+    import numpy as np
+    n = len(P_h)
+    w = max(6, int(window_hours))
+    if n < w:
+        return 0, n
+    cumsum = np.cumsum(np.insert(P_h, 0, 0.0))
+    roll = cumsum[w:] - cumsum[:-w]
+    center = int(np.argmax(roll))
+    start = max(0, center)
+    end = min(n, center + w)
+    # Ensure there is enough rain; if not, return a fallback short window around max hour
+    if np.sum(P_h[start:end]) < 1e-3:
+        peak = int(np.argmax(P_h))
+        start = max(0, peak - w // 2)
+        end = min(n, peak + w // 2)
+    return start, end
+
+
+def run_all_models_with_hourly(years: int = 2,
+                               save_hourly_csv: str = 'data/hourly_forcings.csv',
+                               save_dir: str = 'figures'):
+    """
+    Use a long hourly dataset to drive all models:
+    - Aggregate to daily for continuous models (Xinanjiang, Tank, GR4J, Sacramento, HBV)
+    - Select one storm from hourly data for SCS-CN+UH event model
+    保存输入与关键图件。
+    """
+    import os
+    import pandas as pd
+    os.makedirs(os.path.dirname(save_hourly_csv), exist_ok=True)
+    os.makedirs(save_dir, exist_ok=True)
+
+    forc = generate_long_hourly_forcings(years=years, seed=2025)
+    times_h = forc['times']
+    P_h = forc['P_hourly']
+    PET_h = forc['PET_hourly']
+    T_h = forc['T_hourly']
+
+    # Save hourly CSV
+    df_h = pd.DataFrame({
+        'Datetime': times_h,
+        'P_mm_per_h': P_h,
+        'PET_mm_per_h': PET_h,
+        'T_C': T_h,
+    })
+    df_h.to_csv(save_hourly_csv, index=False)
+    print(f"✓ Saved long hourly forcings: {save_hourly_csv} ({len(df_h)} rows)")
+
+    # Aggregate to daily for continuous models
+    dates_d, P_d, PET_d, T_d = aggregate_hourly_to_daily(times_h, P_h, PET_h, T_h)
+    print(f"✓ Aggregated to daily: {len(P_d)} days from {dates_d[0].date()} to {dates_d[-1].date()}")
+
+    # Run continuous models
+    results = {}
+    print("\nRunning continuous models with daily inputs (aggregated from hourly)...")
+
+    xaj = XinanjiangModel()
+    results['Xinanjiang'] = xaj.run(P_d, PET_d)
+
+    tank1d = TankModel1D()
+    results['Tank_1D'] = tank1d.run(P_d, PET_d)
+
+    tank2d = TankModel2D()
+    results['Tank_2D'] = tank2d.run(P_d, PET_d)
+
+    tank3d = TankModel3D()
+    results['Tank_3D'] = tank3d.run(P_d, PET_d)
+
+    gr4j = GR4J()
+    results['GR4J'] = gr4j.run(P_d, PET_d)
+
+    sac = SacramentoModel()
+    results['Sacramento'] = sac.run(P_d, PET_d)
+
+    hbv = HBVModel()
+    results['HBV'] = hbv.run(P_d, T_d, PET_d)
+
+    # Build a synthetic observed series to compute metrics (same approach as compare_all_models)
+    rng = np.random.default_rng(123)
+    observed_Q = np.clip(results['Xinanjiang']['Q'] + rng.normal(0.0, 0.5, size=len(P_d)), a_min=0.0, a_max=None)
+
+    # Summary table
+    print("\n" + "=" * 80)
+    print("Hourly-driven (aggregated daily) Model Summary / 基于小时驱动(汇聚到每日)的模型汇总")
+    print("=" * 80)
+    print("\n{:<20} {:<15} {:<15} {:<15} {:<15} {:<12} {:<12} {:<12}".format(
+        "Model / 模型", "Total Q (mm)", "Runoff Coef", "Peak Q (mm)", "Mean Q (mm)",
+        "NSE", "RMSE", "PBIAS"))
+    print("-" * 80)
+    for name, res in results.items():
+        Q = res['Q']
+        total_Q = float(np.sum(Q))
+        runoff_coef = float(np.sum(Q) / (np.sum(P_d) + 1e-9))
+        peak_Q = float(np.max(Q))
+        mean_Q = float(np.mean(Q))
+        nse = calculate_nse(observed_Q, Q)
+        rmse = calculate_rmse(observed_Q, Q)
+        pbias = calculate_pbias(observed_Q, Q)
+        print("{:<20} {:<15.2f} {:<15.3f} {:<15.2f} {:<15.2f} {:<12.3f} {:<12.2f} {:<12.2f}".format(
+            name, total_Q, runoff_coef, peak_Q, mean_Q, nse, rmse, pbias))
+
+    # Reuse existing comparison plots pipeline
+    try:
+        create_model_comparison_plots(P_d, PET_d, observed_Q, results, save_dir=save_dir)
+    except Exception as e:
+        print(f"(Plotting skipped due to error: {e})")
+
+    # Run SCS-CN+UH on one extracted storm from hourly series
+    print("\nRunning SCS-CN + UH event model on extracted hourly storm...")
+    s, e = _extract_storm_from_hourly(P_h, window_hours=36)
+    P_event = P_h[s:e]
+    if P_event.size < 6 or np.sum(P_event) < 1e-3:
+        # Fallback to a synthetic event if the long series is too dry
+        evt = generate_hourly_rain_event(total_depth_mm=60.0, storm_hours=18)
+        P_event = evt['P_hourly']
+        t_event = evt['datetimes']
+    else:
+        t_event = times_h[s:e]
+
+    # Choose reasonable parameters for a mid-size catchment
+    em = EventModel(CN=75, AMC='II', Tp=3.0, dt=1.0, uh_type='triangular')
+    evt_results = em.run(P_event)
+    # Plot and save
+    try:
+        create_event_plots(em, evt_results, save_dir=save_dir)
+    except Exception as e:
+        print(f"(Event plotting skipped due to error: {e})")
+
+    print(f"Event total rainfall: {np.sum(P_event):.1f} mm; Peak Q (UH): {np.max(evt_results['Q_hydrograph']):.2f} mm/h")
+    print("✓ Hourly-driven analysis completed.")
+
+
 def main():
     """
     Main function to run all examples.
@@ -647,6 +973,10 @@ def main():
     print("*" * 80)
     print("\n")
     
+    # Example 0: Create an hourly rainfall dataset for event-based models (SCS-CN+UH)
+    # 事件型模型所需的小时降雨示例（如需生成，请取消下一行注释）
+    # hourly_rain_demo()
+
     # Example 1: Real-world data structure
     real_world_data_structure()
     
@@ -657,6 +987,9 @@ def main():
     
     # input("\nPress Enter to continue to sensitivity analysis...")
     
+    # Example 2b: Drive all models with long hourly data (aggregated for daily models)
+    run_all_models_with_hourly(years=2)
+
     # Example 3: Sensitivity analysis
     # sensitivity_analysis_example()
     

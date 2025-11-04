@@ -540,8 +540,13 @@ def create_xinanjiang_plots(model, P, EP, results, save_dir="figures"):
     param_values = [model.K, model.B, model.IMP*100, model.WM/10, model.WUM, model.WLM, 
                    model.C*100, model.SM, model.EX, model.KI*10, model.KG*10]
     
-    bars = axes[0, 0].bar(range(len(param_names)), param_values, 
-                         color=plt.cm.Set3(np.linspace(0, 1, len(param_names))))
+    # Use modern Matplotlib colormap API to avoid deprecation warnings
+    from matplotlib import colormaps as mcm
+    bars = axes[0, 0].bar(
+        range(len(param_names)),
+        param_values,
+        color=mcm.get_cmap('Set3')(np.linspace(0, 1, len(param_names)))
+    )
     axes[0, 0].set_title('Model Parameters (scaled for visualization)', fontweight='bold')
     axes[0, 0].set_ylabel('Parameter Value', fontweight='bold')
     axes[0, 0].set_xticks(range(len(param_names)))
