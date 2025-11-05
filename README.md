@@ -8,6 +8,30 @@
 
 ## English
 
+### 🎓 NEW: Teaching Materials Available! / 新增教学材料！
+
+We have added comprehensive teaching materials to help students and instructors:
+我们添加了综合教学材料来帮助学生和教师：
+
+- 📊 **[PowerPoint Presentation](docs/HydroLearn_Teaching_Presentation.pptx)** - 18 slides covering all models / 18页PPT涵盖所有模型
+- 📖 **[Teaching Guide](docs/TEACHING_GUIDE.md)** - Complete semester curriculum with exercises / 完整学期课程含练习
+- 🎨 **[Model Flowcharts](figures/)** - Visual diagrams for HBV, Xinanjiang, and more / 模型流程图
+  - `hbv_model_flowchart.png` - HBV model structure / HBV模型结构
+  - `xinanjiang_model_flowchart.png` - Xinanjiang model structure / 新安江模型结构
+  - `water_cycle_diagram.png` - Hydrological cycle concept / 水文循环概念
+  - `model_comparison_table.png` - Model comparison / 模型对比表
+
+**Generate Teaching Materials:**
+```bash
+# Generate flowcharts and diagrams
+python docs/model_flowcharts.py
+
+# Create PowerPoint presentation
+python docs/create_presentation.py
+```
+
+---
+
 ### Overview for Students
 
 This repository is designed as a teaching tool for 3rd-year hydraulic engineering students. It provides Python implementations of classic hydrological models, focusing on bridging the gap between theory and practical application. Here, you will not only learn the mathematical principles behind these models but also understand how they are calibrated and validated using real-world data.
@@ -140,7 +164,16 @@ Hydrological-model/
 │   └── example_teaching_dataset.csv  # Teaching dataset (NEW) / 教学数据集(新增)
 ├── notebooks/
 │   └── teaching_quickstart.ipynb     # Teaching notebook (NEW) / 教学笔记本(新增)
-├── figures/                           # Output figures directory / 输出图表目录
+├── docs/                              # Teaching materials (NEW) / 教学材料(新增)
+│   ├── TEACHING_GUIDE.md             # Complete teaching guide / 完整教学指南
+│   ├── model_flowcharts.py           # Generate flowcharts / 生成流程图
+│   ├── create_presentation.py        # Generate PPT / 生成演示文稿
+│   └── HydroLearn_Teaching_Presentation.pptx  # PowerPoint slides / PPT幻灯片
+├── figures/                           # Output figures and diagrams / 输出图表和图解
+│   ├── hbv_model_flowchart.png       # HBV model flowchart / HBV模型流程图
+│   ├── xinanjiang_model_flowchart.png # Xinanjiang flowchart / 新安江流程图
+│   ├── water_cycle_diagram.png       # Water cycle diagram / 水文循环图
+│   └── model_comparison_table.png    # Model comparison / 模型对比表
 ├── README.md                         # This file / 本文件
 ├── requirements.txt                  # Python dependencies / Python依赖
 ├── xinanjiang_model.py               # Xinanjiang model / 新安江模型
@@ -164,6 +197,29 @@ Hydrological-model/
 <a name="中文"></a>
 
 ## 中文
+
+### 🎓 新增：教学材料现已提供！
+
+我们添加了全面的教学材料来帮助学生和教师：
+
+- 📊 **[PowerPoint演示文稿](docs/HydroLearn_Teaching_Presentation.pptx)** - 18页幻灯片涵盖所有模型
+- 📖 **[教学指南](docs/TEACHING_GUIDE.md)** - 完整学期课程含实践练习
+- 🎨 **[模型流程图](figures/)** - HBV、新安江等模型的可视化图表
+  - `hbv_model_flowchart.png` - HBV模型结构流程图
+  - `xinanjiang_model_flowchart.png` - 新安江模型结构流程图
+  - `water_cycle_diagram.png` - 水文循环概念图
+  - `model_comparison_table.png` - 模型对比表
+
+**生成教学材料：**
+```bash
+# 生成流程图和图表
+python docs/model_flowcharts.py
+
+# 创建PowerPoint演示文稿
+python docs/create_presentation.py
+```
+
+---
 
 ### 教学概述
 
@@ -297,11 +353,27 @@ Hydrological-model/
 │   └── example_teaching_dataset.csv  # 教学数据集(新增)
 ├── notebooks/
 │   └── teaching_quickstart.ipynb     # 教学笔记本(新增)
-├── figures/                           # 输出图表目录
+├── docs/                              # 教学材料(新增)
+│   ├── TEACHING_GUIDE.md             # 完整教学指南
+│   ├── model_flowcharts.py           # 生成流程图
+│   ├── create_presentation.py        # 生成演示文稿
+│   └── HydroLearn_Teaching_Presentation.pptx  # PowerPoint幻灯片
+├── figures/                           # 输出图表和图解
+│   ├── hbv_model_flowchart.png       # HBV模型流程图
+│   ├── xinanjiang_model_flowchart.png # 新安江流程图
+│   ├── water_cycle_diagram.png       # 水文循环图
+│   └── model_comparison_table.png    # 模型对比表
 ├── README.md                         # 本文件
 ├── requirements.txt                  # Python依赖
 ├── xinanjiang_model.py               # 新安江模型
 ├── tank_model.py                     # Tank模型
+├── gr4j_model.py                     # GR4J模型
+├── sacramento_model.py               # Sacramento模型
+├── hbv_model.py                      # HBV模型(新增)
+├── event_model_scs_uh.py             # SCS-CN + 单位线事件模型(新增)
+├── examples.py                       # 基于虚拟数据的示例
+└── calibration_example.py            # 基于真实数据的率定与验证
+```
 ├── gr4j_model.py                     # GR4J模型
 ├── sacramento_model.py               # Sacramento模型
 ├── hbv_model.py                      # HBV模型(新增)
