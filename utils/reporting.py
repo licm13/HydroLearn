@@ -13,8 +13,7 @@ from datetime import datetime, timedelta
 from .performance import (
     nash_sutcliffe_efficiency,
     root_mean_squared_error,
-    percent_bias,
-    basic_runoff_statistics
+    percent_bias
 )
 
 # Get module logger
@@ -28,10 +27,10 @@ def compute_water_balance(
 ) -> Dict[str, float]:
     """
     Compute water balance components from model results.
-    
+
     This function calculates the water balance including total inputs, outputs,
     storage changes, and balance error for a hydrological model simulation.
-    
+
     Parameters
     ----------
     precipitation : np.ndarray
@@ -41,7 +40,7 @@ def compute_water_balance(
     model_results : Dict[str, np.ndarray]
         Dictionary containing model output arrays. Must include 'Q' (discharge).
         May optionally include 'ET' (actual evapotranspiration) and storage components.
-        
+
     Returns
     -------
     Dict[str, float]
@@ -50,7 +49,7 @@ def compute_water_balance(
         - 'total_output': Total discharge + actual ET (mm)
         - 'storage_change': Estimated change in storage (mm)
         - 'balance_error': Water balance error (mm)
-        
+
     Examples
     --------
     >>> P = np.array([10.0, 5.0, 0.0, 15.0])
@@ -66,28 +65,28 @@ def compute_water_balance(
             'storage_change': np.nan,
             'balance_error': np.nan
         }
-    
+
     # Total input (precipitation)
     total_input = float(np.sum(precipitation))
-    
+
     # Total output (discharge + actual ET if available)
     total_discharge = float(np.sum(model_results.get('Q', np.array([0.0]))))
-    
+
     # Use actual ET if available, otherwise use potential ET as approximation
     if 'ET' in model_results:
         total_et = float(np.sum(model_results['ET']))
     else:
         total_et = float(np.sum(potential_evap))
-    
+
     total_output = total_discharge + total_et
-    
+
     # Storage change (input - output)
     storage_change = total_input - total_output
-    
+
     # Balance error (ideally should be close to zero for closed water balance)
     # For simple models, this is essentially the storage change
     balance_error = storage_change
-    
+
     return {
         'total_input': total_input,
         'total_output': total_output,
@@ -105,10 +104,10 @@ def format_model_summary(
 ) -> str:
     """
     Format a comprehensive summary for a hydrological model.
-    
+
     Creates a formatted string containing key performance metrics and statistics
     for a model simulation.
-    
+
     Parameters
     ----------
     name : str
@@ -122,12 +121,12 @@ def format_model_summary(
     observed_flow : Optional[np.ndarray]
         Array of observed flow values for performance metric calculation.
         If None, performance metrics (NSE, RMSE, PBIAS) will not be computed.
-        
+
     Returns
     -------
     str
         Formatted summary string containing model statistics
-        
+
     Examples
     --------
     >>> P = np.array([10.0, 5.0, 0.0, 15.0])
@@ -137,17 +136,17 @@ def format_model_summary(
     >>> print(summary)
     """
     Q = model_results.get('Q', np.array([]))
-    
+
     if Q.size == 0:
         return f"{name:<20} {'N/A':<15} {'N/A':<15} {'N/A':<15} {'N/A':<15} {'N/A':<12} {'N/A':<12} {'N/A':<12}"
-    
+
     # Calculate basic statistics
     total_Q = float(np.sum(Q))
     total_P = float(np.sum(precipitation))
     runoff_coef = total_Q / total_P if total_P > 0 else np.nan
     peak_Q = float(np.max(Q))
     mean_Q = float(np.mean(Q))
-    
+
     # Calculate performance metrics if observed flow is provided
     if observed_flow is not None and observed_flow.size > 0:
         nse = nash_sutcliffe_efficiency(observed_flow, Q)
@@ -157,12 +156,12 @@ def format_model_summary(
         nse = np.nan
         rmse = np.nan
         pbias = np.nan
-    
+
     # Format the summary line
     summary = "{:<20} {:<15.2f} {:<15.3f} {:<15.2f} {:<15.2f} {:<12.3f} {:<12.2f} {:<12.2f}".format(
         name, total_Q, runoff_coef, peak_Q, mean_Q, nse, rmse, pbias
     )
-    
+
     return summary
 
 
@@ -176,10 +175,10 @@ def print_first_n_days_table(
 ) -> str:
     """
     Print a formatted table of the first N days of model results.
-    
+
     Creates a tabular view of daily hydrological variables including precipitation,
     potential ET, and discharge for the first N days of simulation.
-    
+
     Parameters
     ----------
     start_date : datetime
@@ -194,12 +193,12 @@ def print_first_n_days_table(
         Number of days to display (default: 20)
     date_formatter : Optional[Callable[[datetime], str]], optional
         Custom date formatting function. If None, uses ISO format (YYYY-MM-DD).
-        
+
     Returns
     -------
     str
         Formatted table string
-        
+
     Examples
     --------
     >>> from datetime import datetime
@@ -212,17 +211,18 @@ def print_first_n_days_table(
     """
     # Default date formatter if none provided
     if date_formatter is None:
-        date_formatter = lambda d: d.strftime('%Y-%m-%d')
-    
+        def date_formatter(d):
+            return d.strftime('%Y-%m-%d')
+
     # Extract discharge from model results
     Q = model_results.get('Q', np.array([]))
-    
+
     # Determine actual number of days to display
     n_days = min(n, len(precipitation), len(potential_evap), len(Q))
-    
+
     if n_days == 0:
         return "No data available to display."
-    
+
     # Build the table header
     lines = []
     lines.append("\nFirst {} days of simulation:".format(n_days))
@@ -230,7 +230,7 @@ def print_first_n_days_table(
         "Date", "P (mm)", "ET (mm)", "Q (mm)"
     ))
     lines.append("-" * 50)
-    
+
     # Build table rows
     for i in range(n_days):
         current_date = start_date + timedelta(days=i)
@@ -238,15 +238,15 @@ def print_first_n_days_table(
         p_val = precipitation[i] if i < len(precipitation) else np.nan
         et_val = potential_evap[i] if i < len(potential_evap) else np.nan
         q_val = Q[i] if i < len(Q) else np.nan
-        
+
         lines.append("{:<12} {:<12.2f} {:<12.2f} {:<12.2f}".format(
             date_str, p_val, et_val, q_val
         ))
-    
+
     # Join all lines into a single string
     table_str = "\n".join(lines)
-    
+
     # Log the table using the module logger
     logger.info("\n" + table_str)
-    
+
     return table_str
