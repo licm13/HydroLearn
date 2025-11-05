@@ -83,8 +83,9 @@ def compute_water_balance(
     # Storage change (input - output)
     storage_change = total_input - total_output
 
-    # Balance error (ideally should be close to zero for closed water balance)
-    # For simple models, this is essentially the storage change
+    # Balance error: For simple lumped models without explicit storage tracking,
+    # the balance error equals the storage change. Models with detailed storage
+    # components could extend this calculation.
     balance_error = storage_change
 
     return {
@@ -211,8 +212,9 @@ def print_first_n_days_table(
     """
     # Default date formatter if none provided
     if date_formatter is None:
-        def date_formatter(d):
+        def default_date_formatter(d):
             return d.strftime('%Y-%m-%d')
+        date_formatter = default_date_formatter
 
     # Extract discharge from model results
     Q = model_results.get('Q', np.array([]))
