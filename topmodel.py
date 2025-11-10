@@ -80,6 +80,7 @@ class Topmodel:
 
         self._mean_deficit = float(self.config.initial_mean_deficit)
         self._cell_deficits = np.full(n_cells, self._mean_deficit, dtype=float)
+        self._mean_ti = np.mean(self.topographic_index)
 
     # ------------------------------------------------------------------
     # Core hydrological routines
