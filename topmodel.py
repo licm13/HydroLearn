@@ -96,7 +96,8 @@ class Topmodel:
             formulation we subtract it uniformly from the saturation deficits.
         """
 
-        net_precip = max(precipitation - evapotranspiration, 0.0)
+        # Evapotranspiration increases the saturation deficit.
+        self._cell_deficits += evapotranspiration
 
         # Effective deficit for each index value.
         effective_deficit = self._cell_deficits - self.config.m * (
@@ -104,13 +105,12 @@ class Topmodel:
         )
 
         # Saturation-excess runoff occurs when precipitation exceeds the deficit.
-        saturation_excess = np.maximum(net_precip - effective_deficit, 0.0)
+        saturation_excess = np.maximum(precipitation - effective_deficit, 0.0)
         surface_runoff = float(np.sum(saturation_excess * self.area_weights))
 
         # Update local deficits after the rainfall event.
-        infiltration = net_precip - saturation_excess
+        infiltration = precipitation - saturation_excess
         self._cell_deficits = np.maximum(self._cell_deficits - infiltration, 0.0)
-        self._cell_deficits += evapotranspiration
 
         # Exponential transmissivity relationship yields baseflow response.
         baseflow = float(
