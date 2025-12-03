@@ -196,9 +196,9 @@ class HydrologyPINN(nn.Module):
             Predicted storage change [batch_size, 1]
         """
         # Normalize inputs (very important for neural networks!)
-        P_norm = (P - self.P_mean) / (self.P_std + 1e-8)
-        E_norm = (E - self.E_mean) / (self.E_std + 1e-8)
-        S_norm = (S_prev - self.S_mean) / (self.S_std + 1e-8)
+        P_norm = (P - self.P_mean) / self.P_std if self.P_std > 1e-8 else (P - self.P_mean)
+        E_norm = (E - self.E_mean) / self.E_std if self.E_std > 1e-8 else (E - self.E_mean)
+        S_norm = (S_prev - self.S_mean) / self.S_std if self.S_std > 1e-8 else (S_prev - self.S_mean)
 
         # Concatenate inputs
         x = torch.cat([P_norm, E_norm, S_norm], dim=1)
