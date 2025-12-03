@@ -331,7 +331,7 @@ class HydrologyPINN(nn.Module):
 
         # Create dataset and dataloader
         dataset = TensorDataset(P_tensor, E_tensor, S_tensor, Q_tensor)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
         # Validation data
         if validation_split > 0:
