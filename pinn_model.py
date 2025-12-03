@@ -307,16 +307,21 @@ class HydrologyPINN(nn.Module):
         self.E_mean, self.E_std = np.mean(E[:n_train]), np.std(E[:n_train])
         self.Q_mean, self.Q_std = np.mean(Q_obs[:n_train]), np.std(Q_obs[:n_train])
 
-        # Initialize storage (starting from 50% of maximum observed Q, a reasonable guess)
-        S_initial = np.max(Q_obs) * 0.5
+        # Initialize storage by integrating the water balance equation with observed data
         S = np.zeros(len(P))
-        S[0] = S_initial
+        S[0] = np.max(Q_obs[:n_train]) * 0.5  # Initial guess for storage
+        for t in range(len(P) - 1):
+            # Use observed data to estimate storage change
+            dS_observed = P[t] - E[t] - Q_obs[t]
+            S[t + 1] = S[t] + dS_observed
+            S[t + 1] = max(0, S[t + 1])  # Storage cannot be negative
 
-        self.S_mean, self.S_std = S_initial, np.std(Q_obs)  # Use Q std as proxy
+        # Update normalization stats based on the calculated storage
+        self.S_mean, self.S_std = np.mean(S[:n_train]), np.std(S[:n_train])
 
-        # Prepare data
+        # Prepare previous storage as an input feature
         S_prev = np.roll(S, 1)
-        S_prev[0] = S_initial
+        S_prev[0] = S[0]
 
         # Convert to PyTorch tensors
         P_tensor = torch.FloatTensor(P[:n_train]).reshape(-1, 1)
